@@ -41,6 +41,9 @@ large_font = pygame.font.Font(None, 72)
 
 leaderboard = {'Easy': (float('inf'), 0), 'Medium': (float('inf'), 0), 'Hard': (float('inf'), 0)}
 
+pygame.mixer.init()
+pygame.mixer.music.load(None)  # Add background music here
+
 def generate_grid(level):
     rows, cols = level
     num_pairs = rows * cols // 2
@@ -64,13 +67,15 @@ def draw_card(x, y, color, revealed=True, progress=1):
         pygame.draw.rect(screen, DARK_GRAY, (x, y, width, CARD_HEIGHT), border_radius=RADIUS)
         pygame.draw.rect(screen, GRAY, (x + 5, y + 5, width - 10, CARD_HEIGHT - 10), border_radius=RADIUS-5)
 
-def draw_timer_and_attempts(elapsed_time, attempts, level_name):
+def draw_timer_and_attempts(elapsed_time, attempts, level_name, hints_left):
     timer_text = font.render(f"Time: {int(elapsed_time)}s", True, BLACK)
     screen.blit(timer_text, (SCREEN_WIDTH // 2 - timer_text.get_width() // 2, 10))
     attempts_text = font.render(f"Attempts: {attempts}", True, BLACK)
     screen.blit(attempts_text, (10, 10))
     level_text = font.render(f"Level: {level_name}", True, BLACK)
     screen.blit(level_text, (SCREEN_WIDTH - level_text.get_width() - 10, 10))
+    hints_text = font.render(f"Hints Left: {hints_left}", True, BLACK)
+    screen.blit(hints_text, (SCREEN_WIDTH // 2 - hints_text.get_width() // 2, 40))
 
 def calculate_score(attempts, elapsed_time):
     score = max(10000 - (attempts * 100 + int(elapsed_time) * 10), 0)
@@ -86,7 +91,7 @@ def display_end_screen(score, level_name):
     screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + 100))
 
     best_time, best_attempts = leaderboard[level_name]
-    if score > best_time * best_attempts:  
+    if score > best_time * best_attempts:  # Lower time and fewer attempts means better score
         leaderboard[level_name] = (score, score)
 
 def handle_victory(matches, total_matches, elapsed_time, attempts, level_name):
@@ -95,6 +100,12 @@ def handle_victory(matches, total_matches, elapsed_time, attempts, level_name):
         display_end_screen(score, level_name)
         return True
     return False
+
+def animate_match(x, y, color):
+    for i in range(10):
+        draw_card(x, y, color, progress=1 - i / 10)
+        pygame.display.flip()
+        pygame.time.wait(50)
 
 def choose_level():
     screen.fill(WHITE)
@@ -129,6 +140,63 @@ def choose_level():
                     level_name = 'Hard'
     return level_choice, level_name
 
+def main_menu():
+    screen.fill(WHITE)
+    title = large_font.render("Memory Card Game", True, BLACK)
+    screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 100))
+
+    start_text = font.render("Press Enter to Start", True, BLACK)
+    screen.blit(start_text, (SCREEN_WIDTH // 2 - start_text.get_width() // 2, 250))
+
+    leaderboard_text = font.render("Press L to View Leaderboard", True, BLACK)
+    screen.blit(leaderboard_text, (SCREEN_WIDTH // 2 - leaderboard_text.get_width() // 2, 300))
+
+    exit_text = font.render("Press Esc to Exit", True, BLACK)
+    screen.blit(exit_text, (SCREEN_WIDTH // 2 - exit_text.get_width() // 2, 350))
+
+    pygame.display.flip()
+
+    in_menu = True
+    while in_menu:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    in_menu = False
+                elif event.key == pygame.K_l:
+                    show_leaderboard()
+                elif event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    exit()
+
+def show_leaderboard():
+    screen.fill(WHITE)
+    title = large_font.render("Leaderboard", True, BLACK)
+    screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 100))
+
+    y_pos = 200
+    for level, (time, attempts) in leaderboard.items():
+        text = font.render(f"{level}: Best Score - {time} (Attempts: {attempts})", True, BLACK)
+        screen.blit(text, (SCREEN_WIDTH // 2 - text.get_width() // 2, y_pos))
+        y_pos += 50
+
+    back_text = small_font.render("Press B to go back", True, BLACK)
+    screen.blit(back_text, (SCREEN_WIDTH // 2 - back_text.get_width() // 2, y_pos + 50))
+
+    pygame.display.flip()
+
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_b:
+                    return
+
+main_menu()
 running = True
 while running:
     level, level_name = choose_level()
@@ -142,9 +210,8 @@ while running:
     flip_duration = 0.5
     card_flip_progress = 0
     start_time = time.time()
-    end_time = 0
+    hints_left = 3
     game_over = False
-    restart_prompt_shown = False
     first_card = None
     second_card = None
 
@@ -169,6 +236,19 @@ while running:
                         flip_animation = True
                         flip_start_time = time.time()
 
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_h and hints_left > 0:
+                    hints_left -= 1
+                    for r in range(rows):
+                        for c in range(cols):
+                            revealed[r][c] = True
+                    pygame.display.flip()
+                    pygame.time.wait(1000)
+                    for r in range(rows):
+                        for c in range(cols):
+                            if not matched[r][c]:
+                                revealed[r][c] = False
+
         if flip_animation:
             card_flip_progress = (time.time() - flip_start_time) / flip_duration
             if card_flip_progress >= 1:
@@ -179,6 +259,8 @@ while running:
                     matched[r1][c1] = True
                     matched[r2][c2] = True
                     matches += 1
+                    animate_match(r1 * (CARD_WIDTH + MARGIN), c1 * (CARD_HEIGHT + MARGIN), grid[r1][c1])
+                    animate_match(r2 * (CARD_WIDTH + MARGIN), c2 * (CARD_HEIGHT + MARGIN), grid[r2][c2])
                 else:
                     revealed[r1][c1] = False
                     revealed[r2][c2] = False
@@ -202,20 +284,7 @@ while running:
             game_over = True
 
         if not game_over:
-            draw_timer_and_attempts(elapsed_time, attempts, level_name)
-
-        if game_over and event.type == pygame.KEYDOWN and event.key == pygame.K_r:
-            level, level_name = choose_level()
-            grid, rows, cols = generate_grid(level)
-            revealed = [[False] * cols for _ in range(rows)]
-            matched = [[False] * cols for _ in range(rows)]
-            attempts = 0
-            matches = 0
-            first_card = None
-            second_card = None
-            start_time = time.time()
-            game_over = False
-            restart_prompt_shown = False
+            draw_timer_and_attempts(elapsed_time, attempts, level_name, hints_left)
 
         pygame.display.flip()
 
