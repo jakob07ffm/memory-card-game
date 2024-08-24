@@ -41,8 +41,9 @@ large_font = pygame.font.Font(None, 72)
 
 leaderboard = {'Easy': (float('inf'), 0), 'Medium': (float('inf'), 0), 'Hard': (float('inf'), 0)}
 
-pygame.mixer.init()
-pygame.mixer.music.load(None)  # Add background music here
+# Removed pygame.mixer initialization and music loading
+# pygame.mixer.init()
+# pygame.mixer.music.load(None)  # Background music removed
 
 def generate_grid(level):
     rows, cols = level
