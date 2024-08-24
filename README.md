@@ -11,3 +11,5 @@ This is an advanced memory card game built with Python and Pygame. The game chal
 - **Scoring System:** Scores are based on time taken and the number of attempts.
 - **Hints:** Limited hints to reveal all cards briefly.
 - **Leaderboard:** Track the best score for each difficulty level.
+
+![](memory_1_screenshot.JPG)
